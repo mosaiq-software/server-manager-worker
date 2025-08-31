@@ -5,8 +5,7 @@ import * as child_process from 'child_process';
 import * as fs from 'fs/promises';
 const execAsync = util.promisify(child_process.exec);
 
-const NSM_PIPE_PATH = "/etc/nsmexec";
-const DEFAULT_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const MAX_TIMEOUT = 1000 * 60 * 60; // 1 hour
 
 const handleDeployer = async (rawInput) => {
     if (rawInput?.trim().length === 0) return;
@@ -62,7 +61,7 @@ const handleDeployer = async (rawInput) => {
         }
 
         try {
-            await fs.writeFile(workingOutFilePath, `Project ID: ${projectId}\nInstance ID: ${instanceId}\nCommand: ${command}\nTimeout: ${timeout || DEFAULT_TIMEOUT}ms\n\n--- Output ---\n\n`);
+            await fs.writeFile(workingOutFilePath, `Project ID: ${projectId}\nInstance ID: ${instanceId}\nCommand: ${command}\nTimeout: ${timeout || MAX_TIMEOUT}ms\n\n--- Output ---\n\n`);
         } catch (error) {
             console.error("Failed to create working output file:", error);
             return;
@@ -73,20 +72,16 @@ const handleDeployer = async (rawInput) => {
             stdio: ['ignore', 'pipe', 'pipe']
         });
 
-        console.log("this child was started by the command", child.pid, child.spawnargs);
-
-        let timeoutId;
-        if (timeout) {
-            timeoutId = setTimeout(() => {
-                console.log(`Command timed out after ${timeout}ms`);
-                fs.appendFile(workingOutFilePath, `\n\n--- Command timed out after ${timeout}ms ---\n`, (err) => {
-                    if (err) {
-                        console.error("Failed to write timeout message to working output file:", err);
-                    }
-                });
-                child.kill();
-            }, timeout);
-        }
+        const realTimeout = timeout && typeof timeout === 'number' && timeout > 0 ? timeout : MAX_TIMEOUT;
+        const timeoutId = setTimeout(() => {
+            console.log(`Command timed out after ${realTimeout}ms`);
+            fs.appendFile(workingOutFilePath, `\n\n--- Command timed out after ${realTimeout}ms ---\n`, (err) => {
+                if (err) {
+                    console.error("Failed to write timeout message to working output file:", err);
+                }
+            });
+            child.kill();
+        }, realTimeout);
 
         child.stdout.on('data', (data) => {
             fs.appendFile(workingOutFilePath, data.toString(), (err) => {
@@ -115,10 +110,15 @@ const handleDeployer = async (rawInput) => {
 }
 
 const listenToPipe = async () => {
-    console.log("Listening to pipe..." + NSM_PIPE_PATH);
-    while (true) {
+    console.log("Listening to pipe..." + process.env.NSM_PIPE_PATH);
 
-        const { out: pipeOut, code: pipeCode } = await execSafe(`cat ${NSM_PIPE_PATH}`);
+    if (process.env.PRODUCTION !== 'true') {
+        console.log("Not in production mode, skipping pipe listener.");
+        return;
+    }
+
+    while (true) {
+        const { out: pipeOut, code: pipeCode } = await execSafe(`cat ${process.env.NSM_PIPE_PATH}`);
         if (pipeCode === 0) {
             handleDeployer(pipeOut);
         } else {
@@ -140,4 +140,25 @@ const execSafe = async (command, timeoutms) => {
     return { out, code };
 }
 
+/*
+ * Get the process environment variables from ./.env file
+ */
+const loadProcessEnv = async () => {
+    try {
+        const env = await fs.readFile('./.env', 'utf-8');
+        const lines = env.split('\n');
+        for (const line of lines) {
+            const [key, value] = line.split('=');
+            if (key && value) {
+                process.env[key.trim()] = value.trim();
+            }
+        }
+    } catch (error) {
+        console.error("Failed to read .env file:", error);
+    }
+};
+
+
+// === STARTUP ===
+await loadProcessEnv();
 listenToPipe();
