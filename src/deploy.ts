@@ -5,8 +5,8 @@ import * as fs from 'fs/promises';
 
 export const deployProject = async (deployable: DeployableProject) => {
     try {
-        await cloneRepository(deployable.id, deployable.repoOwner, deployable.repoName, deployable.logId);
-        await runDeploymentCommand(deployable.id, deployable.runCommand, deployable.timeout, deployable.logId);
+        await cloneRepository(deployable.projectId, deployable.repoOwner, deployable.repoName, deployable.logId);
+        await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
     } catch (error: any) {
         sendLogToControlPlane(deployable.logId, `Failed to deploy project: ${error.message}\n`, DeploymentState.FAILED);
         console.error('Failed to deploy project:', error);
