@@ -6,8 +6,9 @@ import * as fs from 'fs/promises';
 export const deployProject = async (deployable: DeployableProject) => {
     try {
         await cloneRepository(deployable.projectId, deployable.repoOwner, deployable.repoName, deployable.logId);
+        await injectDotenv(deployable.projectId, deployable.dotenv, deployable.logId);
         await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
-        sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYING);
+        sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYED);
     } catch (error: any) {
         sendLogToControlPlane(deployable.logId, `Failed to deploy project: ${error.message}\n`, DeploymentState.FAILED);
         console.error('Failed to deploy project:', error);
@@ -39,6 +40,21 @@ const cloneRepository = async (projectId: string, repoOwner: string, repoName: s
         return;
     } catch (e: any) {
         throw new Error(`Error cloning repository: ${e.message}`);
+    }
+};
+
+const injectDotenv = async (projectId: string, dotenv: string, logId: string): Promise<void> => {
+    if (process.env.PRODUCTION !== 'true') {
+        console.log('Not in production mode, skipping dotenv injection');
+        sendLogToControlPlane(logId, 'Not in production mode, skipping dotenv injection\n', DeploymentState.DEPLOYING);
+        return;
+    }
+
+    try {
+        await fs.writeFile(`${process.env.DEPLOYMENT_PATH}/${projectId}/.env`, dotenv);
+        sendLogToControlPlane(logId, 'Successfully injected dotenv file\n', DeploymentState.DEPLOYING);
+    } catch (e: any) {
+        throw new Error(`Error injecting dotenv file: ${e.message}`);
     }
 };
 
@@ -117,8 +133,9 @@ const sendLogToControlPlane = async (logId: string, logContents: string, status:
         status,
         log: logContents,
     };
+    const url = `${process.env.API_URL}${API_ROUTES.POST_DEPLOYMENT_LOG_UPDATE}`;
     try {
-        await fetch(API_ROUTES.POST_DEPLOYMENT_LOG_UPDATE, {
+        await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

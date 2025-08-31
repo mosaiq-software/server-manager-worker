@@ -104,6 +104,7 @@ const handleDeployer = async (rawInput) => {
             fs.rename(workingOutFilePath, outFilePath).catch((err) => {
                 console.error("Failed to rename working output file:", err);
             });
+            clearTimeout(timeoutId);
         });
     }
 
