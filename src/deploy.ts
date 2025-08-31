@@ -7,6 +7,7 @@ export const deployProject = async (deployable: DeployableProject) => {
     try {
         await cloneRepository(deployable.projectId, deployable.repoOwner, deployable.repoName, deployable.logId);
         await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
+        sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYING);
     } catch (error: any) {
         sendLogToControlPlane(deployable.logId, `Failed to deploy project: ${error.message}\n`, DeploymentState.FAILED);
         console.error('Failed to deploy project:', error);
@@ -16,6 +17,7 @@ export const deployProject = async (deployable: DeployableProject) => {
 const cloneRepository = async (projectId: string, repoOwner: string, repoName: string, logId: string): Promise<void> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, skipping repository clone');
+        sendLogToControlPlane(logId, 'Not in production mode, skipping repository clone\n', DeploymentState.DEPLOYING);
         return;
     }
 
@@ -43,6 +45,7 @@ const cloneRepository = async (projectId: string, repoOwner: string, repoName: s
 const runDeploymentCommand = async (projectId: string, runCommand: string, timeoutms: number, logId: string): Promise<void> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, skipping deployment execution');
+        sendLogToControlPlane(logId, 'Not in production mode, skipping deployment execution\n', DeploymentState.DEPLOYING);
         return;
     }
     const deploymentCommand = `(cd ${process.env.DEPLOYMENT_PATH}/${projectId} && ${runCommand})`;
