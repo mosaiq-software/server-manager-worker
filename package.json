@@ -7,7 +7,12 @@
     "scripts": {
         "start": "tsx watch src/index.ts",
         "lint": "eslint .",
-        "types": "tsc --noemit"
+        "types": "tsc --noemit",
+        "common:prod": "npm un @mosaiq/nsm-common && npm i @mosaiq/nsm-common@latest",
+        "common:dev": "npm un @mosaiq/nsm-common && npm i ../server-manager/common/dist",
+        "deploy": "npm run executor:start; docker compose -p nsm-worker up --build -d",
+        "executor:start": "pm2 start nsmExecHandle.mjs -i 1",
+        "executor:stop": "pm2 stop nsmExecHandle.mjs"
     },
     "author": "",
     "dependencies": {

@@ -10,4 +10,6 @@ RUN npm install -g tsx
 
 RUN npm ci
 
+RUN npm run common:prod
+
 CMD ["tsx", "src/index.ts"]

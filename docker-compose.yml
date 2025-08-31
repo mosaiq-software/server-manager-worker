@@ -2,18 +2,18 @@ services:
     worker:
         build: .
         ports:
-            - '${NSMUSEONLY_PORT_1}:3001'
+            - '${NSMUSEONLY_PORT_1}:${WORKER_PORT}'
         restart: always
         healthcheck:
-            test: [ "CMD", "curl", "-f", "http://0.0.0.0:${NSMUSEONLY_PORT_1}/" ]
+            test: ['CMD', 'curl', '-f', 'http://0.0.0.0:${NSMUSEONLY_PORT_1}/']
             interval: 15s
             timeout: 10s
             retries: 5
             start_period: 30s
         volumes:
             - type: bind
-              source: ${WEBAPPS_PATH}
-              target: ${WEBAPPS_PATH}
+              source: ${DEPLOYMENT_PATH}
+              target: ${DEPLOYMENT_PATH}
             - type: bind
               source: ${NSM_PIPE_PATH}
               target: ${NSM_PIPE_PATH}
