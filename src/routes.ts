@@ -57,8 +57,8 @@ privateRouter.post(WORKER_ROUTES.POST_FIND_NEXT_FREE_PORTS, async (req, res) => 
 privateRouter.post(WORKER_ROUTES.POST_REQUEST_DIRECTORIES, async (req, res) => {
     const body = req.body as WORKER_BODY[WORKER_ROUTES.POST_REQUEST_DIRECTORIES];
     try {
-        const fullPaths = await getPersistentDirectories(body.relPaths);
-        const reply: WORKER_RESPONSE[WORKER_ROUTES.POST_REQUEST_DIRECTORIES] = { directories: fullPaths };
+        const pathMap = await getPersistentDirectories(body);
+        const reply: WORKER_RESPONSE[WORKER_ROUTES.POST_REQUEST_DIRECTORIES] = pathMap;
         res.status(200).send(reply);
     } catch (error) {
         console.error(error);
