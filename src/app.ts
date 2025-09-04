@@ -1,6 +1,6 @@
 import cors from 'cors';
 import express from 'express';
-import routes from './routes';
+import { publicRouter, privateRouter } from './routes';
 
 export const initApp = async () => {
     const app = express();
@@ -8,7 +8,8 @@ export const initApp = async () => {
     app.use(express.json({ limit: '1mb' }));
     app.use(express.urlencoded({ extended: true, limit: '1mb' }));
     app.set('trust proxy', true);
-    app.use(routes);
+    app.use(publicRouter);
+    app.use(privateRouter);
 
     return app;
 };
