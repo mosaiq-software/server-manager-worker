@@ -8,7 +8,8 @@ export const deployProject = async (deployable: DeployableProject) => {
         await cloneRepository(deployable);
 
         await injectDotenv(deployable.projectId, deployable.dotenv, deployable.logId);
-
+        await handleNginx(deployable.projectId, deployable.nginxConf, deployable.logId);
+        await handleCertbot(deployable.domainsToCertify, deployable.logId);
         await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
         await sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYED);
     } catch (error: any) {
@@ -64,6 +65,51 @@ const injectDotenv = async (projectId: string, dotenv: string, logId: string): P
     }
 };
 
+const handleNginx = async (projectId: string, nginxConf: string, logId: string): Promise<void> => {
+    if (process.env.PRODUCTION !== 'true') {
+        console.log('Not in production mode, skipping nginx configuration');
+        await sendLogToControlPlane(logId, 'Not in production mode, skipping nginx configuration\n', DeploymentState.DEPLOYING);
+        return;
+    }
+    const nginxReloadCommand = 'nginx -s reload';
+    const nginxConfFile = `${projectId}.conf`;
+    const nginxConfPath = `${process.env.CONTROL_PLANE_WORKER_NGINX_DIR}/${nginxConfFile}`;
+    try {
+        await fs.writeFile(nginxConfPath, nginxConf);
+        await sendLogToControlPlane(logId, `Successfully wrote nginx config to ${nginxConfPath}\n`, DeploymentState.DEPLOYING);
+    } catch (e: any) {
+        throw new Error(`Error writing nginx config file: ${e.message}`);
+    }
+    try {
+        const { out: nginxOut, code: nginxCode } = await execOnHost(nginxReloadCommand, 10000, async (data: string) => {
+            await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
+        });
+    } catch (e: any) {
+        throw new Error(`Error reloading nginx: ${e.message}`);
+    }
+};
+
+const handleCertbot = async (domains: string[], logId: string): Promise<void> => {
+    if (process.env.PRODUCTION !== 'true') {
+        console.log('Not in production mode, skipping certbot execution');
+        await sendLogToControlPlane(logId, 'Not in production mode, skipping certbot execution\n', DeploymentState.DEPLOYING);
+        return;
+    }
+    if (domains.length === 0) {
+        await sendLogToControlPlane(logId, 'No domains to certify, skipping certbot execution\n', DeploymentState.DEPLOYING);
+        return;
+    }
+    const domainArgs = domains.map((d) => `-d ${d}`).join(' ');
+    const certbotCommand = `certbot certonly --nginx ${domainArgs} --agree-tos --non-interactive`;
+    try {
+        const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCommand, 1000 * 60 * 2, async (data: string) => {
+            await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
+        });
+    } catch (e: any) {
+        throw new Error(`Error running certbot command: ${e.message}`);
+    }
+};
+
 const runDeploymentCommand = async (projectId: string, runCommand: string, timeoutms: number, logId: string): Promise<void> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, skipping deployment execution');
@@ -82,64 +128,6 @@ const runDeploymentCommand = async (projectId: string, runCommand: string, timeo
     } catch (e: any) {
         throw new Error(`Error running deployment command: ${e.message}`);
     }
-
-    //     // Send the command
-    //     const messageInstanceId = crypto.randomUUID();
-    //     const message: HostExecMessage = {
-    //         instanceId: messageInstanceId,
-    //         command: deploymentCommand,
-    //         timeout: timeoutms || undefined,
-    //     };
-    //     console.log('Sending command to executor:', message);
-    //     await sendLogToControlPlane(logId, `Sending command to executor: ${JSON.stringify(message)}\n`, DeploymentState.DEPLOYING);
-    //     const { out: execOut, code: execCode } = await sendMessageToNsmExecutor(message);
-    //     // await updateDeploymentLogModel(logId, { log: execOut });
-    //     if (execCode !== 0) {
-    //         throw new Error(`Error sending command to executor, code ${execCode}: ${execOut}`);
-    //     }
-
-    //     // Stream in the output
-    //     console.log('Waiting for output file from executor...');
-    //     const outWorkingFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out.working`;
-    //     const outFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out`;
-    //     const startTime = Date.now();
-    //     const maxEndTime = startTime + timeoutms + 2000;
-    //     while (true) {
-    //         try {
-    //             const workingContents = await fs.readFile(outWorkingFilePath, 'utf-8');
-    //             if (workingContents.length > 0) {
-    //                 console.log('Streaming output from executor...');
-    //                 await fs.truncate(outWorkingFilePath, 0);
-    //                 await sendLogToControlPlane(logId, `${workingContents}\n`, DeploymentState.DEPLOYING);
-    //             }
-    //         } catch (e) {
-    //             console.log('File not found:', e);
-    //             break;
-    //         }
-    //         await new Promise((r) => setTimeout(r, 1000));
-    //         if (Date.now() > maxEndTime) {
-    //             console.warn('Timed out waiting for output file from executor');
-    //             break;
-    //         }
-    //     }
-    //     console.log('Finalizing output file from executor...');
-    //     const outFileContents = await fs.readFile(outFilePath, 'utf-8');
-    //     await sendLogToControlPlane(logId, `${outFileContents}\n`, DeploymentState.DEPLOYING);
-    //     console.log('Deployment command output complete.');
-
-    //     // Clean up the output
-    //     try {
-    //         await sendLogToControlPlane(logId, 'Cleaning up output files...\n', DeploymentState.DEPLOYING);
-    //         fs.rm(outWorkingFilePath, { recursive: true, force: true });
-    //         fs.rm(outFilePath, { recursive: true, force: true });
-    //     } catch (e: any) {
-    //         console.error('Error cleaning up output files:', e);
-    //         await sendLogToControlPlane(logId, `Not Fatal, but error cleaning up output files: ${e.message}\n`, DeploymentState.DEPLOYING);
-    //     }
-    // } catch (e: any) {
-    //     console.error('Error running deployment command:', deploymentCommand, e);
-    //     throw new Error(`Error running deployment command: ${e.message}`);
-    // }
 };
 
 const sendLogToControlPlane = async (logId: string, logContents: string, status: DeploymentState): Promise<void> => {
