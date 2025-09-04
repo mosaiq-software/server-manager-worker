@@ -2,10 +2,10 @@ services:
     worker:
         build: .
         ports:
-            - '${NSMUSEONLY_PORT_1}:${WORKER_PORT}'
+            - '${WORKER_PORT}:${WORKER_PORT}'
         restart: always
         healthcheck:
-            test: ['CMD', 'curl', '-f', 'http://0.0.0.0:${NSMUSEONLY_PORT_1}/']
+            test: ['CMD', 'curl', '-f', 'http://0.0.0.0:${WORKER_PORT}/']
             interval: 15s
             timeout: 10s
             retries: 5
@@ -19,3 +19,6 @@ services:
               target: ${NSM_PIPE_PATH}
         env_file:
             - .env
+    nginx:
+        image: nginx:latest
+        network_mode: 'host'
