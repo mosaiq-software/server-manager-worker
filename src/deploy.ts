@@ -1,6 +1,6 @@
 import { DeployableProject, DeploymentLogUpdate, DeploymentState } from '@mosaiq/nsm-common/types';
 import { API_ROUTES } from '@mosaiq/nsm-common/routes';
-import { execSafe, HostExecMessage, sendMessageToNsmExecutor } from './execUtils';
+import { execOnHost, execSafe, HostExecMessage, sendMessageToNsmExecutor } from './execUtils';
 import * as fs from 'fs/promises';
 
 export const deployProject = async (deployable: DeployableProject) => {
@@ -72,65 +72,74 @@ const runDeploymentCommand = async (projectId: string, runCommand: string, timeo
     }
     const deploymentCommand = `(cd ${process.env.DEPLOYMENT_PATH}/${projectId} && ${runCommand})`;
     try {
-        // Send the command
-        const messageInstanceId = crypto.randomUUID();
-        const message: HostExecMessage = {
-            projectId,
-            instanceId: messageInstanceId,
-            command: deploymentCommand,
-            cleanup: false,
-            timeout: timeoutms || undefined,
-        };
-        console.log('Sending command to executor:', message);
-        await sendLogToControlPlane(logId, `Sending command to executor: ${JSON.stringify(message)}\n`, DeploymentState.DEPLOYING);
-        const { out: execOut, code: execCode } = await sendMessageToNsmExecutor(message);
-        // await updateDeploymentLogModel(logId, { log: execOut });
+        const { out: execOut, code: execCode } = await execOnHost(deploymentCommand, timeoutms, async (data: string) => {
+            await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
+        });
         if (execCode !== 0) {
-            throw new Error(`Error sending command to executor, code ${execCode}: ${execOut}`);
+            throw new Error(`Deployment command exited with code ${execCode}: ${execOut}`);
         }
-
-        // Stream in the output
-        console.log('Waiting for output file from executor...');
-        const outWorkingFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out.working`;
-        const outFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out`;
-        const startTime = Date.now();
-        const maxEndTime = startTime + timeoutms + 2000;
-        while (true) {
-            try {
-                const workingContents = await fs.readFile(outWorkingFilePath, 'utf-8');
-                if (workingContents.length > 0) {
-                    console.log('Streaming output from executor...');
-                    await fs.truncate(outWorkingFilePath, 0);
-                    await sendLogToControlPlane(logId, `${workingContents}\n`, DeploymentState.DEPLOYING);
-                }
-            } catch (e) {
-                console.log('File not found:', e);
-                break;
-            }
-            await new Promise((r) => setTimeout(r, 1000));
-            if (Date.now() > maxEndTime) {
-                console.warn('Timed out waiting for output file from executor');
-                break;
-            }
-        }
-        console.log('Finalizing output file from executor...');
-        const outFileContents = await fs.readFile(outFilePath, 'utf-8');
-        await sendLogToControlPlane(logId, `${outFileContents}\n`, DeploymentState.DEPLOYING);
-        console.log('Deployment command output complete.');
-
-        // Clean up the output
-        try {
-            await sendLogToControlPlane(logId, 'Cleaning up output files...\n', DeploymentState.DEPLOYING);
-            fs.rm(outWorkingFilePath, { recursive: true, force: true });
-            fs.rm(outFilePath, { recursive: true, force: true });
-        } catch (e: any) {
-            console.error('Error cleaning up output files:', e);
-            await sendLogToControlPlane(logId, `Not Fatal, but error cleaning up output files: ${e.message}\n`, DeploymentState.DEPLOYING);
-        }
+        await sendLogToControlPlane(logId, 'Deployment command completed successfully.\n', DeploymentState.DEPLOYING);
     } catch (e: any) {
-        console.error('Error running deployment command:', deploymentCommand, e);
         throw new Error(`Error running deployment command: ${e.message}`);
     }
+
+    //     // Send the command
+    //     const messageInstanceId = crypto.randomUUID();
+    //     const message: HostExecMessage = {
+    //         instanceId: messageInstanceId,
+    //         command: deploymentCommand,
+    //         timeout: timeoutms || undefined,
+    //     };
+    //     console.log('Sending command to executor:', message);
+    //     await sendLogToControlPlane(logId, `Sending command to executor: ${JSON.stringify(message)}\n`, DeploymentState.DEPLOYING);
+    //     const { out: execOut, code: execCode } = await sendMessageToNsmExecutor(message);
+    //     // await updateDeploymentLogModel(logId, { log: execOut });
+    //     if (execCode !== 0) {
+    //         throw new Error(`Error sending command to executor, code ${execCode}: ${execOut}`);
+    //     }
+
+    //     // Stream in the output
+    //     console.log('Waiting for output file from executor...');
+    //     const outWorkingFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out.working`;
+    //     const outFilePath = `${process.env.NSM_OUTPUT_PATH}/${projectId}/${messageInstanceId}.out`;
+    //     const startTime = Date.now();
+    //     const maxEndTime = startTime + timeoutms + 2000;
+    //     while (true) {
+    //         try {
+    //             const workingContents = await fs.readFile(outWorkingFilePath, 'utf-8');
+    //             if (workingContents.length > 0) {
+    //                 console.log('Streaming output from executor...');
+    //                 await fs.truncate(outWorkingFilePath, 0);
+    //                 await sendLogToControlPlane(logId, `${workingContents}\n`, DeploymentState.DEPLOYING);
+    //             }
+    //         } catch (e) {
+    //             console.log('File not found:', e);
+    //             break;
+    //         }
+    //         await new Promise((r) => setTimeout(r, 1000));
+    //         if (Date.now() > maxEndTime) {
+    //             console.warn('Timed out waiting for output file from executor');
+    //             break;
+    //         }
+    //     }
+    //     console.log('Finalizing output file from executor...');
+    //     const outFileContents = await fs.readFile(outFilePath, 'utf-8');
+    //     await sendLogToControlPlane(logId, `${outFileContents}\n`, DeploymentState.DEPLOYING);
+    //     console.log('Deployment command output complete.');
+
+    //     // Clean up the output
+    //     try {
+    //         await sendLogToControlPlane(logId, 'Cleaning up output files...\n', DeploymentState.DEPLOYING);
+    //         fs.rm(outWorkingFilePath, { recursive: true, force: true });
+    //         fs.rm(outFilePath, { recursive: true, force: true });
+    //     } catch (e: any) {
+    //         console.error('Error cleaning up output files:', e);
+    //         await sendLogToControlPlane(logId, `Not Fatal, but error cleaning up output files: ${e.message}\n`, DeploymentState.DEPLOYING);
+    //     }
+    // } catch (e: any) {
+    //     console.error('Error running deployment command:', deploymentCommand, e);
+    //     throw new Error(`Error running deployment command: ${e.message}`);
+    // }
 };
 
 const sendLogToControlPlane = async (logId: string, logContents: string, status: DeploymentState): Promise<void> => {

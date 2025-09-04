@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { initApp } from './app';
-import { applyGithubFingerprints } from './gitUtils';
+import { applyGithubFingerprints, initializeBindings } from './initUtils';
 import { exit } from 'process';
 
 const start = async () => {
@@ -10,6 +10,7 @@ const start = async () => {
     });
 
     applyGithubFingerprints();
+    await initializeBindings();
 
     process.on('SIGTERM', async () => {
         console.warn('Received SIGTERM, Ignoring...');
