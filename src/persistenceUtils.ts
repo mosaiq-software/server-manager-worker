@@ -1,16 +1,17 @@
+import { FullDirectoryMap, RelativeDirectoryMap } from '@mosaiq/nsm-common/types';
 import * as fs from 'fs/promises';
-export const getPersistentDirectories = async (map: { [key: string]: { relPath: string } }): Promise<{ [key: string]: { fullPath: string } }> => {
+export const getPersistentDirectories = async (map: RelativeDirectoryMap): Promise<FullDirectoryMap> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, returning mock directories');
         const mockBase = '/mock/persistent';
-        const result: { [key: string]: { fullPath: string } } = {};
+        const result: FullDirectoryMap = {};
         for (const key in map) {
             result[key] = { fullPath: `${mockBase}/${map[key].relPath.replace(/^\/+/, '')}` };
         }
         return result;
     }
     const basePath = process.env.PERSISTENT_PATH;
-    const fullPaths: { [key: string]: { fullPath: string } } = {};
+    const fullPaths: FullDirectoryMap = {};
     for (const key in map) {
         fullPaths[key] = { fullPath: `${basePath}/${map[key].relPath.replace(/^\/+/, '')}` };
     }
