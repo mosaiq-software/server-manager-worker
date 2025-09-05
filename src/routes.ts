@@ -77,4 +77,13 @@ privateRouter.post(WORKER_ROUTES.POST_HANDLE_CONFIGS, async (req, res) => {
     }
 });
 
+privateRouter.get(WORKER_ROUTES.POST_HEALTHCHECK, async (req, res) => {
+    try {
+        res.status(204).send();
+    } catch (error) {
+        console.error(error);
+        res.status(500).send();
+    }
+});
+
 export { publicRouter, privateRouter };
