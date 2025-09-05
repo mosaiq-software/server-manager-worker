@@ -5,7 +5,7 @@ services:
             - '${WORKER_PORT}:${WORKER_PORT}'
         restart: always
         healthcheck:
-            test: ['CMD', 'curl', '-f', 'http://0.0.0.0:${WORKER_PORT}/']
+            test: [ 'CMD', 'curl', '-f', 'http://0.0.0.0:${WORKER_PORT}/' ]
             interval: 15s
             timeout: 10s
             retries: 5
@@ -14,11 +14,20 @@ services:
             - type: bind
               source: ${DEPLOYMENT_PATH}
               target: ${DEPLOYMENT_PATH}
+              bind:
+                  create_host_path: true
+            - type: bind
+              source: ${PERSISTENT_PATH}
+              target: ${PERSISTENT_PATH}
+              bind:
+                  create_host_path: true
             - type: bind
               source: ${NSM_PIPE_PATH}
               target: ${NSM_PIPE_PATH}
+            - type: bind
+              source: ${NSM_OUTPUT_PATH}
+              target: ${NSM_OUTPUT_PATH}
+              bind:
+                  create_host_path: true
         env_file:
             - .env
-    nginx:
-        image: nginx:latest
-        network_mode: 'host'

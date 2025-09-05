@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { execSafe } from './execUtils';
 
 const githubPublicFingerprint1 = 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl';
 const githubPublicFingerprint2 = 'github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=';
@@ -18,4 +19,28 @@ export const applyGithubFingerprints = () => {
     } catch (e) {
         console.error('Error adding GitHub fingerprints to known_hosts:', e);
     }
+};
+
+
+export const initializeBindings = async () => {
+    if (process.env.PRODUCTION !== 'true') {
+        console.log('Not in production mode, skipping bindings initialization');
+        return;
+    }
+    
+    const neededPaths = [process.env.NSM_OUTPUT_PATH, process.env.DEPLOYMENT_PATH, process.env.PERSISTENT_PATH];
+    for (const path of neededPaths) {
+        if (!path) {
+            console.warn('Path not defined in environment variables');
+            continue;
+        }
+        try {
+            await execSafe(`mkdir -p ${path}`);
+            await execSafe(`chmod 777 -R ${path}`);
+            console.log(`Created path: ${path}`);
+        } catch (e) {
+            console.error(`Error creating path ${path}:`, e);
+        }
+    }
+    console.log('Bindings initialization completed');
 };
