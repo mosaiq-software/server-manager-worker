@@ -29,5 +29,15 @@ services:
               target: ${NSM_OUTPUT_PATH}
               bind:
                   create_host_path: true
+            - type: bind
+              source: ${GIT_SSH_KEY_DIR}
+              target: ${GIT_SSH_KEY_DIR}
+              bind:
+                  create_host_path: true
+            - type: bind
+              source: ${CONTROL_PLANE_WORKER_NGINX_DIR}
+              target: ${CONTROL_PLANE_WORKER_NGINX_DIR}
+              bind:
+                  create_host_path: true
         env_file:
             - .env
