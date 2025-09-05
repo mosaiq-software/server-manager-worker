@@ -1,6 +1,6 @@
 import { WORKER_BODY, WORKER_RESPONSE, WORKER_ROUTES } from '@mosaiq/nsm-common/workerRoutes';
 import express from 'express';
-import { deployProject } from './deploy';
+import { controlPlaneWorkerHandleConfigs, deployProject } from './deploy';
 import { verifyAuthToken } from './auth';
 import { getNextFreePorts, getOccupiedPorts } from './portUtils';
 import { getPersistentDirectories } from './persistenceUtils';
@@ -60,6 +60,17 @@ privateRouter.post(WORKER_ROUTES.POST_REQUEST_DIRECTORIES, async (req, res) => {
         const pathMap = await getPersistentDirectories(body);
         const reply: WORKER_RESPONSE[WORKER_ROUTES.POST_REQUEST_DIRECTORIES] = pathMap;
         res.status(200).send(reply);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send();
+    }
+});
+
+privateRouter.post(WORKER_ROUTES.POST_HANDLE_CONFIGS, async (req, res) => {
+    const body = req.body as WORKER_BODY[WORKER_ROUTES.POST_HANDLE_CONFIGS];
+    try {
+        await controlPlaneWorkerHandleConfigs(body);
+        res.status(204).send();
     } catch (error) {
         console.error(error);
         res.status(500).send();

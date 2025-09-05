@@ -1,4 +1,4 @@
-import { DeployableProject, DeploymentLogUpdate, DeploymentState } from '@mosaiq/nsm-common/types';
+import { DeployableControlPlaneConfig, DeployableProject, DeploymentLogUpdate, DeploymentState } from '@mosaiq/nsm-common/types';
 import { API_ROUTES } from '@mosaiq/nsm-common/routes';
 import { execOnHost, execSafe, HostExecMessage, sendMessageToNsmExecutor } from './execUtils';
 import * as fs from 'fs/promises';
@@ -9,14 +9,17 @@ export const deployProject = async (deployable: DeployableProject) => {
         await cloneRepository(deployable);
 
         await injectDotenv(deployable.projectId, deployable.dotenv, deployable.logId);
-        await handleNginx(deployable.projectId, deployable.nginxConf, deployable.logId);
-        await handleCertbot(deployable.domainsToCertify, deployable.logId);
         await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
         await sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYED);
     } catch (error: any) {
         await sendLogToControlPlane(deployable.logId, `Failed to deploy project: ${error.message}\n`, DeploymentState.FAILED);
         console.error('Failed to deploy project:', error);
     }
+};
+
+export const controlPlaneWorkerHandleConfigs = async (config: DeployableControlPlaneConfig) => {
+    await handleNginx(config.projectId, config.nginxConf, config.logId);
+    await handleCertbot(config.domainsToCertify, config.logId);
 };
 
 const cloneRepository = async (deployable: DeployableProject): Promise<void> => {
