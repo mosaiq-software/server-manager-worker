@@ -95,6 +95,15 @@ const handleCommand = async (rawInput) => {
 }
 
 const listenToPipe = async () => {
+    const { out, code } = await execSafe('whoami');
+    if (code !== 0) {
+        console.error("Failed to get current user:", out);
+        return;
+    }
+    if (out.trim() !== 'root') {
+        console.error("Not running as root, cannot access named pipe:", out);
+        return;
+    }
     console.log("Listening to pipe..." + process.env.NSM_PIPE_PATH);
 
     if (process.env.PRODUCTION !== 'true') {
