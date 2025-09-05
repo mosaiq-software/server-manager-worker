@@ -2,6 +2,7 @@ import { DeployableProject, DeploymentLogUpdate, DeploymentState } from '@mosaiq
 import { API_ROUTES } from '@mosaiq/nsm-common/routes';
 import { execOnHost, execSafe, HostExecMessage, sendMessageToNsmExecutor } from './execUtils';
 import * as fs from 'fs/promises';
+import { getGitHttpsUri, getGitSshUri } from '@mosaiq/nsm-common/gitUtils';
 
 export const deployProject = async (deployable: DeployableProject) => {
     try {
@@ -19,24 +20,35 @@ export const deployProject = async (deployable: DeployableProject) => {
 };
 
 const cloneRepository = async (deployable: DeployableProject): Promise<void> => {
-    if (process.env.PRODUCTION !== 'true') {
-        console.log('Not in production mode, skipping repository clone');
-        await sendLogToControlPlane(deployable.logId, 'Not in production mode, skipping repository clone\n', DeploymentState.DEPLOYING);
-        return;
-    }
+    const repoPath = `${process.env.DEPLOYMENT_PATH}/${deployable.projectId}`;
+    const branchFlags = deployable.repoBranch ? `-b ${deployable.repoBranch} --single-branch` : '';
 
     try {
         await sendLogToControlPlane(deployable.logId, 'Cleaning up old repository...\n', DeploymentState.DEPLOYING);
-        await fs.rm(`${process.env.DEPLOYMENT_PATH}/${deployable.projectId}`, { recursive: true, force: true });
+        await fs.rm(repoPath, { recursive: true, force: true });
     } catch (e: any) {
         throw new Error(`Error cleaning up old repository: ${e.message}`);
     }
 
+    if (process.env.PRODUCTION !== 'true') {
+        console.log('Not in production mode, handling local repository clone');
+        await sendLogToControlPlane(deployable.logId, 'Not in production mode, handling local repository clone\n', DeploymentState.DEPLOYING);
+        const httpUri = getGitHttpsUri(deployable.repoOwner, deployable.repoName);
+        const cmd = `git clone ${branchFlags} ${httpUri} ${repoPath}`;
+        console.log('Cloning repository with command:', cmd);
+        const { out: gitOut, code: gitCode } = await execSafe(cmd, 1000 * 60 * 1);
+        if (gitCode !== 0) {
+            console.error('Git clone output:', gitOut);
+            throw new Error(`Git clone exited with code ${gitCode}`);
+        }
+        await sendLogToControlPlane(deployable.logId, `Git clone output:\n${gitOut}\n`, DeploymentState.DEPLOYING);
+        return;
+    }
+
     try {
-        const gitSshUri = `git@github.com:${deployable.repoOwner}/${deployable.repoName}.git`;
-        const branchFlags = deployable.repoBranch ? `-b ${deployable.repoBranch} --single-branch` : '';
+        const gitSshUri = getGitSshUri(deployable.repoOwner, deployable.repoName);
         const sshFlags = `-c core.sshCommand="/usr/bin/ssh -i ${process.env.GIT_SSH_KEY_DIR}/${process.env.GIT_SSH_KEY_FILE}"`;
-        const cmd = `git clone --progress ${branchFlags} ${sshFlags} ${gitSshUri} ${process.env.DEPLOYMENT_PATH}/${deployable.projectId}`;
+        const cmd = `git clone --progress ${branchFlags} ${sshFlags} ${gitSshUri} `;
         await sendLogToControlPlane(deployable.logId, `Cloning repository ${gitSshUri}...\n`, DeploymentState.DEPLOYING);
         const { out: gitOut, code: gitCode } = await execSafe(cmd, 1000 * 60 * 5);
         if (gitCode !== 0) {
