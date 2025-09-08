@@ -1,9 +1,11 @@
 import { WORKER_BODY, WORKER_RESPONSE, WORKER_ROUTES } from '@mosaiq/nsm-common/workerRoutes';
 import express from 'express';
-import { controlPlaneWorkerHandleConfigs, deployProject } from './deploy';
+import { deployProject } from './deploy';
 import { verifyAuthToken } from './auth';
 import { getNextFreePorts, getOccupiedPorts } from './portUtils';
 import { getPersistentDirectories } from './persistenceUtils';
+import { controlPlaneWorkerHandleConfigs } from './controlPlane';
+import { listContainerData } from './dockerUtils';
 
 const publicRouter = express.Router();
 const privateRouter = express.Router();
@@ -77,9 +79,11 @@ privateRouter.post(WORKER_ROUTES.POST_HANDLE_CONFIGS, async (req, res) => {
     }
 });
 
-privateRouter.get(WORKER_ROUTES.POST_HEALTHCHECK, async (req, res) => {
+privateRouter.post(WORKER_ROUTES.POST_LIST_CONTAINERS, async (req, res) => {
     try {
-        res.status(204).send();
+        const containers = await listContainerData();
+        const reply: WORKER_RESPONSE[WORKER_ROUTES.POST_LIST_CONTAINERS] = { containers };
+        res.status(200).send(reply);
     } catch (error) {
         console.error(error);
         res.status(500).send();

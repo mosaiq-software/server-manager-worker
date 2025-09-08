@@ -1,5 +1,6 @@
 import { FullDirectoryMap, RelativeDirectoryMap } from '@mosaiq/nsm-common/types';
 import * as fs from 'fs/promises';
+
 export const getPersistentDirectories = async (map: RelativeDirectoryMap): Promise<FullDirectoryMap> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, returning mock directories');
