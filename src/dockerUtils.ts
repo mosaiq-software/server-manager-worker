@@ -1,7 +1,24 @@
-import { RawDockerContainerData } from '@mosaiq/nsm-common/types';
+import { DockerContainerData } from '@mosaiq/nsm-common/types';
 import { execOnHost } from './execUtils';
 
-export const listContainerData = async (): Promise<RawDockerContainerData[]> => {
+export interface RawDockerContainerData {
+    Command: string;
+    CreatedAt: string;
+    ID: string;
+    Image: string;
+    Labels: string;
+    LocalVolumes: string;
+    Mounts: string;
+    Names: string;
+    Networks: string;
+    Ports: string;
+    RunningFor: string;
+    Size: string;
+    State: string;
+    Status: string;
+}
+
+export const listContainerData = async (): Promise<DockerContainerData[]> => {
     // .ID	Container ID
     // .Image	Image ID
     // .Command	Quoted command
@@ -21,9 +38,29 @@ export const listContainerData = async (): Promise<RawDockerContainerData[]> => 
     if (code !== 0) {
         throw new Error(`Error listing containers, code ${code}, out: ${out}`);
     }
-    const json = `[${out.trim().replace(/\n/g, ',')}]`;
+    const jsonString = `[${out.trim().replace(/\n/g, ',')}]`;
+    let json: RawDockerContainerData[] = [];
+    try {
+        json = JSON.parse(jsonString);
+    } catch (e) {
+        console.error('Error parsing JSON from docker ps output:', e);
+        console.error('Raw output:', out);
+    }
 
-    return JSON.parse(json) as RawDockerContainerData[];
+    const jsonCleaned: DockerContainerData[] = json.map((container) => {
+        const labels: { [key: string]: string } = {};
+        container.Labels.split(',').forEach((kvp) => {
+            const [key, ...rest] = kvp.split('=');
+            const value = rest.join('=');
+            labels[key] = value;
+        });
+        return {
+            ...container,
+            Labels: labels,
+        };
+    });
+
+    return jsonCleaned;
 };
 
 // const a = [
