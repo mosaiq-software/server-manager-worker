@@ -10,7 +10,8 @@
         "types": "tsc --noemit",
         "common:prod": "date && npm un @mosaiq/nsm-common && npm i @mosaiq/nsm-common@latest",
         "common:dev": "npm un @mosaiq/nsm-common && npm i ../server-manager/common/dist",
-        "deploy": "npm run check-is-root-user && (npm run executor:start; docker compose -p nsm-worker up --build -d)",
+        "pre-deploy": "docker compose -p nsm-worker down && docker system prune -af",
+        "deploy": "npm run check-is-root-user && (npm run executor:start; npm run pre-deploy && docker compose -p nsm-worker up --build -d)",
         "check-is-root-user": "test $(id -u) -eq 0 || (echo 'You must run this script as root' && su)",
         "executor:start": "npm run executor:stop; pm2 start nsmExecHandle.mjs",
         "executor:stop": "pm2 delete nsmExecHandle.mjs"
