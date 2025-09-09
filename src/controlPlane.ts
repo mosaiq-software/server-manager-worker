@@ -47,14 +47,24 @@ const handleCertbot = async (domains: string[], logId: string): Promise<void> =>
         await sendLogToControlPlane(logId, 'No domains to certify, skipping certbot execution\n', DeploymentState.DEPLOYING);
         return;
     }
-    const domainArgs = domains.map((d) => `-d ${d}`).join(' ');
-    const certbotCommand = `certbot certonly --nginx ${domainArgs} --agree-tos --non-interactive`;
-    try {
-        const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCommand, 1000 * 60 * 2, async (data: string) => {
-            await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
-        });
-    } catch (e: any) {
-        throw new Error(`Error running certbot command: ${e.message}`);
+    const errors: Error[] = [];
+    for (const domain of domains) {
+        const certbotDelete = `certbot delete --cert-name ${domain} --non-interactive`;
+        const certbotCreate = `certbot certonly --nginx -d ${domain} --agree-tos --non-interactive`;
+        const certbotCommands = `(${certbotDelete}; ${certbotCreate})`;
+        try {
+            const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCommands, 1000 * 60 * 2, async (data: string) => {
+                await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
+            });
+            if (certbotCode !== 0) {
+                errors.push(new Error(`Certbot command failed for domain ${domain} with exit code ${certbotCode}`));
+            }
+        } catch (e: any) {
+            errors.push(new Error(`Error running certbot for domain ${domain}: ${e.message}`));
+        }
+    }
+    if (errors.length > 0) {
+        throw new Error(`Certbot encountered errors: ${errors.map((e) => e.message).join('; ')}`);
     }
 };
 
