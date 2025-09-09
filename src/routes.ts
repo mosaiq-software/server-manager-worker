@@ -2,7 +2,7 @@ import { WORKER_BODY, WORKER_RESPONSE, WORKER_ROUTES } from '@mosaiq/nsm-common/
 import express from 'express';
 import { deployProject } from './deploy';
 import { verifyAuthToken } from './auth';
-import { getNextFreePorts, getOccupiedPorts } from './portUtils';
+import { getNextFreePorts, getOccupiedPorts } from './networkUtils';
 import { getPersistentDirectories } from './persistenceUtils';
 import { controlPlaneWorkerHandleConfigs } from './controlPlane';
 import { listContainerData } from './dockerUtils';
