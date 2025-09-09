@@ -59,9 +59,11 @@ const handleCertbot = async (domains: string[], logId: string): Promise<void> =>
             if (certbotCode !== 0) {
                 errors.push(new Error(`Certbot command failed for domain ${domain} with exit code ${certbotCode}`));
             }
+            await sendLogToControlPlane(logId, `Successfully ran certbot for domain ${domain}\n`, DeploymentState.DEPLOYING);
         } catch (e: any) {
             errors.push(new Error(`Error running certbot for domain ${domain}: ${e.message}`));
         }
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // wait 2 seconds between certbot runs
     }
     if (errors.length > 0) {
         throw new Error(`Certbot encountered errors: ${errors.map((e) => e.message).join('; ')}`);
