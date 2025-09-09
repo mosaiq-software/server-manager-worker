@@ -49,11 +49,16 @@ const handleCertbot = async (domains: string[], logId: string): Promise<void> =>
     }
     const errors: Error[] = [];
     for (const domain of domains) {
-        const certbotDelete = `certbot delete --cert-name ${domain} --non-interactive`;
+        const hasCert = await checkCertbotDomain(domain);
+        if (hasCert) {
+            await sendLogToControlPlane(logId, `Domain ${domain} already has a certificate, skipping certbot\n`, DeploymentState.DEPLOYING);
+            continue;
+        }
+        // const certbotDelete = `certbot delete --cert-name ${domain} --non-interactive`;
         const certbotCreate = `certbot certonly --nginx -d ${domain} --agree-tos --non-interactive`;
-        const certbotCommands = `(${certbotDelete}; ${certbotCreate})`;
+        // const certbotCommands = `(${certbotDelete}; ${certbotCreate})`;
         try {
-            const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCommands, 1000 * 60 * 2, async (data: string) => {
+            const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCreate, 1000 * 60 * 2, async (data: string) => {
                 await sendLogToControlPlane(logId, data, DeploymentState.DEPLOYING);
             });
             if (certbotCode !== 0) {
@@ -67,6 +72,23 @@ const handleCertbot = async (domains: string[], logId: string): Promise<void> =>
     }
     if (errors.length > 0) {
         throw new Error(`Certbot encountered errors: ${errors.map((e) => e.message).join('; ')}`);
+    }
+};
+
+const checkCertbotDomain = async (domain: string): Promise<boolean> => {
+    if (process.env.PRODUCTION !== 'true') {
+        return false;
+    }
+    const certbotCheckCommand = `certbot certificates -d ${domain}`;
+    try {
+        const { out: certbotOut, code: certbotCode } = await execOnHost(certbotCheckCommand, 1000 * 30);
+        if (certbotCode !== 0) {
+            throw new Error(`Certbot command exited with code ${certbotCode}`);
+        }
+        const hasCert = certbotOut.includes(`Certificate Name: ${domain}`);
+        return hasCert;
+    } catch (e: any) {
+        throw new Error(`Error checking certbot for domain ${domain}: ${e.message}`);
     }
 };
 
