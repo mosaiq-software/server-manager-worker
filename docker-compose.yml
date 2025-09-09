@@ -5,7 +5,7 @@ services:
             - '${WORKER_PORT}:${WORKER_PORT}'
         restart: always
         healthcheck:
-            test: [ 'CMD', 'curl', '-f', 'http://0.0.0.0:${WORKER_PORT}/' ]
+            test: ['CMD', 'curl', '-f', 'http://0.0.0.0:${WORKER_PORT}/']
             interval: 15s
             timeout: 10s
             retries: 5
@@ -41,3 +41,5 @@ services:
                   create_host_path: true
         env_file:
             - .env
+        labels:
+            dev.mosaiq.nsm.serviceInstanceId: nsm-worker

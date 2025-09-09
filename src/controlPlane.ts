@@ -4,8 +4,8 @@ import { execOnHost } from './execUtils';
 import * as fs from 'fs/promises';
 
 export const controlPlaneWorkerHandleConfigs = async (config: DeployableControlPlaneConfig) => {
-    await handleNginx(config.projectId, config.nginxConf, config.logId);
     await handleCertbot(config.domainsToCertify, config.logId);
+    await handleNginx(config.projectId, config.nginxConf, config.logId);
 };
 
 const handleNginx = async (projectId: string, nginxConf: string, logId: string): Promise<void> => {
