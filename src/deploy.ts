@@ -46,7 +46,7 @@ const cloneRepository = async (deployable: DeployableProject): Promise<void> => 
     try {
         const gitSshUri = getGitSshUri(deployable.repoOwner, deployable.repoName);
         const sshFlags = `-c core.sshCommand="/usr/bin/ssh -i ${process.env.GIT_SSH_KEY_DIR}/${process.env.GIT_SSH_KEY_FILE}"`;
-        const cmd = `git clone --progress ${branchFlags} ${sshFlags} ${gitSshUri} `;
+        const cmd = `git clone --progress ${branchFlags} ${sshFlags} ${gitSshUri} ${repoPath}`;
         await sendLogToControlPlane(deployable.logId, `Cloning repository ${gitSshUri}...\n`, DeploymentState.DEPLOYING);
         const { out: gitOut, code: gitCode } = await execSafe(cmd, 1000 * 60 * 5);
         if (gitCode !== 0) {
