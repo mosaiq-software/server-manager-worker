@@ -9,7 +9,7 @@ export const deployProject = async (deployable: DeployableProject) => {
         await cloneRepository(deployable);
         await injectCompose(deployable.projectId, deployable.compose, deployable.logId);
         await injectDotenv(deployable.projectId, deployable.dotenv, deployable.logId);
-        await runDeploymentCommand(deployable.projectId, deployable.runCommand, deployable.timeout, deployable.logId);
+        await runDeploymentCommand(deployable.projectId, deployable.timeout, deployable.logId);
         await sendLogToControlPlane(deployable.logId, 'Deployment steps completed successfully.\n', DeploymentState.DEPLOYED);
     } catch (error: any) {
         await sendLogToControlPlane(deployable.logId, `Failed to deploy project: ${error.message}\n`, DeploymentState.FAILED);
@@ -104,12 +104,13 @@ const injectCompose = async (projectId: string, compose: string, logId: string):
     }
 };
 
-const runDeploymentCommand = async (projectId: string, runCommand: string, timeoutms: number, logId: string): Promise<void> => {
+const runDeploymentCommand = async (projectId: string, timeoutms: number, logId: string): Promise<void> => {
     if (process.env.PRODUCTION !== 'true') {
         console.log('Not in production mode, skipping deployment execution');
         await sendLogToControlPlane(logId, 'Not in production mode, skipping deployment execution\n', DeploymentState.DEPLOYING);
         return;
     }
+    const runCommand = `docker compose -p ${projectId} up --build -d`;
     const deploymentCommand = `(cd ${process.env.DEPLOYMENT_PATH}/${projectId} && ${runCommand})`;
     try {
         const { out: execOut, code: execCode } = await execOnHost(deploymentCommand, timeoutms, async (data: string) => {

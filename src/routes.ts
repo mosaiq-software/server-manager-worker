@@ -6,6 +6,7 @@ import { getNextFreePorts, getOccupiedPorts } from './networkUtils';
 import { getPersistentDirectories } from './persistenceUtils';
 import { controlPlaneWorkerHandleConfigs } from './controlPlane';
 import { listContainerData } from './dockerUtils';
+import { teardownProject } from './teardown';
 
 const publicRouter = express.Router();
 const privateRouter = express.Router();
@@ -84,6 +85,17 @@ privateRouter.post(WORKER_ROUTES.POST_LIST_CONTAINERS, async (req, res) => {
         const containers = await listContainerData();
         const reply: WORKER_RESPONSE[WORKER_ROUTES.POST_LIST_CONTAINERS] = { containers };
         res.status(200).send(reply);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send();
+    }
+});
+
+privateRouter.post(WORKER_ROUTES.POST_TEARDOWN_PROJECT, async (req, res) => {
+    const body = req.body as WORKER_BODY[WORKER_ROUTES.POST_TEARDOWN_PROJECT];
+    try {
+        await teardownProject(body);
+        res.status(204).send();
     } catch (error) {
         console.error(error);
         res.status(500).send();
